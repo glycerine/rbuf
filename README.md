@@ -19,10 +19,11 @@ Yes, that is a 300x reduction in memory footprint. Everything ran
 faster too.
 
 Note that Bytes(), while inescapable at times, is expensive: avoid
-it if possible. Instead it is better to use the FixedSizeRingBuf.Readable
-member to get the number of bytes available. Bytes() is expensive because
-it may copy the back and then the front of a wrapped buffer A[Use]
-into A[1-Use] in order to get a contiguous slice. If possible use ContigLen()
+it if possible. If all you need is len(Bytes()), then it is better 
+to use the FixedSizeRingBuf.Readable member directly.
+Bytes() is expensive because it may copy the back and then 
+the front of a wrapped buffer A[Use] into A[1-Use] in order to 
+get a contiguous, unwrapped, slice. If possible use ContigLen()
 first to get the size that can be read without copying, Read() that
 amount, and then Read() a second time -- to avoid the copy.
 
