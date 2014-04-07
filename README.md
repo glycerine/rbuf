@@ -27,4 +27,5 @@ first to get the size that can be read without copying, Read() that
 amount, and then Read() a second time -- to avoid the copy.
 
 copyright (c) 2014, Jason E. Aten
+
 license: MIT
