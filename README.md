@@ -5,6 +5,8 @@ rbuf: a circular ring buffer in Golang
 type FixedSizeRingBuf struct:
 
    * is a fixed-size circular ring buffer. Yes, just what is says.
+     This structure is only for bytes, as it was written to
+     optimize I/O, but could be easily adapted to any other type.
 
    * We keep a pair of ping/pong buffers so that we can linearize
    the circular buffer into a contiguous slice if need be.
