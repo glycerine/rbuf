@@ -52,7 +52,8 @@ func (b *FixedSizeRingBuf) ContigLen() int {
 	return firstContigLen
 }
 
-// constructor
+// constructor. NewFixedSizeRingBuf will allocate internally
+// two buffers of size maxViewInBytes.
 func NewFixedSizeRingBuf(maxViewInBytes int) *FixedSizeRingBuf {
 	n := maxViewInBytes
 	r := &FixedSizeRingBuf{
@@ -75,6 +76,8 @@ func NewFixedSizeRingBuf(maxViewInBytes int) *FixedSizeRingBuf {
 // returned slice, the contents of the buffer will change provided there
 //  are no intervening method calls on the Buffer.
 //
+// The largest slice Bytes ever returns is bounded above by the maxViewInBytes
+// value used when calling NewFixedSizeRingBuf().
 func (b *FixedSizeRingBuf) Bytes() []byte {
 
 	extent := b.Beg + b.Readable
