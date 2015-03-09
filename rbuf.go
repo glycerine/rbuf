@@ -35,7 +35,7 @@ import "io"
 // into A[1-Use] in order to get a contiguous slice. If possible use ContigLen()
 // first to get the size that can be read without copying, Read() that
 // amount, and then Read() a second time -- to avoid the copy.
-
+//
 type FixedSizeRingBuf struct {
 	A        [2][]byte // a pair of ping/pong buffers. Only one is active.
 	Use      int       // which A buffer is in active use, 0 or 1
@@ -52,6 +52,7 @@ func (b *FixedSizeRingBuf) ContigLen() int {
 	return firstContigLen
 }
 
+// constructor
 func NewFixedSizeRingBuf(maxViewInBytes int) *FixedSizeRingBuf {
 	n := maxViewInBytes
 	r := &FixedSizeRingBuf{
@@ -134,13 +135,12 @@ byte count with a nil error, and callers should treat that
 situation as a no-op.
 */
 //
-
 func (b *FixedSizeRingBuf) Read(p []byte) (n int, err error) {
 	return b.ReadAndMaybeAdvance(p, true)
 }
 
-// if you want to Read the data and leave it in the buffer, so as
-// to peek ahead for example.
+// ReadWithoutAdvance(): if you want to Read the data and leave
+// it in the buffer, so as to peek ahead for example.
 func (b *FixedSizeRingBuf) ReadWithoutAdvance(p []byte) (n int, err error) {
 	return b.ReadAndMaybeAdvance(p, false)
 }
@@ -209,6 +209,7 @@ func (b *FixedSizeRingBuf) Write(p []byte) (n int, err error) {
 
 // WriteTo and ReadFrom avoid intermediate allocation and copies.
 
+// WriteTo avoids intermediate allocation and copies.
 // WriteTo writes data to w until there's no more data to write
 // or when an error occurs. The return value n is the number of
 // bytes written. Any error encountered during the write is also returned.
@@ -253,6 +254,7 @@ func (b *FixedSizeRingBuf) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
+// ReadFrom avoids intermediate allocation and copies.
 // ReadFrom() reads data from r until EOF or error. The return value n
 // is the number of bytes read. Any error except io.EOF encountered
 // during the read is also returned.
@@ -278,6 +280,9 @@ func (b *FixedSizeRingBuf) ReadFrom(r io.Reader) (n int64, err error) {
 	}
 }
 
+// Reset quickly forgets any data stored in the ring buffer. The
+// data is still there, but the ring buffer will ignore it and
+// overwrite those buffers as new data comes in.
 func (b *FixedSizeRingBuf) Reset() {
 	b.Beg = 0
 	b.Readable = 0
