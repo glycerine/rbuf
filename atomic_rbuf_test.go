@@ -13,7 +13,7 @@ import (
 
 func TestAtomicRingBufSafeConcurrently001(t *testing.T) {
 
-	cv.Convey("Given a AtomicFixedSizeRingBuf", t, func() {
+	cv.Convey("Given an AtomicFixedSizeRingBuf", t, func() {
 		cv.Convey("concurrent access to the ring should never corrupt it or deadlock, so writing bytes numbered in order should result in reading those bytes in the same numeric order. NB: This test takes about 30 seconds to run on my laptop, with maxRingSize = 20 and N = 10.\n\n", func() {
 
 			maxRingSize := 20
