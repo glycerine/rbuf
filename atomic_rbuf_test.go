@@ -9,6 +9,78 @@ import (
 	cv "github.com/smartystreets/goconvey/convey"
 )
 
+// new tests just for atomic version
+
+func TestAtomicRingBufSafeConcurrently001(t *testing.T) {
+
+	cv.Convey("Given a AtomicFixedSizeRingBuf", t, func() {
+		cv.Convey("concurrent access to the ring should never corrupt it or deadlock, so writing bytes numbered in order should result in reading those bytes in the same numeric order. NB: This test takes about 30 seconds to run on my laptop, with maxRingSize = 20 and N = 10.\n\n", func() {
+
+			maxRingSize := 20
+			for ringSize := 1; ringSize < maxRingSize; ringSize++ {
+				b := NewAtomicFixedSizeRingBuf(ringSize)
+
+				for bufsz := 1; bufsz < 2*ringSize+1; bufsz++ {
+					fmt.Printf("*** testing ringSize = %d  and Read/Write with bufsz = %d\n", ringSize, bufsz)
+
+					writerDone := make(chan bool)
+					readerDone := make(chan bool)
+
+					//N := 255 // biggest N that fits in a byte is 255
+					N := 10
+					bufsz := 1
+					go func() {
+						// writer, write numbers from 0..N in order.
+						by := make([]byte, bufsz)
+						lastWritten := -1
+						for lastWritten < N {
+							for j := 0; j < bufsz; j++ {
+								by[j] = byte(lastWritten + 1 + j)
+							}
+							n, err := b.Write(by)
+							if err != nil && err.Error() != "short write" {
+								panic(fmt.Errorf("wrote n=%d, error: '%s'", n, err))
+							}
+							if n > 0 {
+								//fmt.Printf("writer wrote from %d .. %d\n", lastWritten+1, lastWritten+n)
+							}
+							lastWritten += n
+						}
+						close(writerDone)
+					}()
+
+					go func() {
+						// reader, expect to read 0..N in order
+						by := make([]byte, bufsz)
+						lastRead := -1
+						for lastRead < N {
+							n, err := b.Read(by)
+							if err != nil && err.Error() != "EOF" {
+								panic(err)
+							}
+							for j := 0; j < n; j++ {
+								//cv.So(by[j], cv.ShouldEqual, lastRead+1+j)
+								if by[j] != byte(lastRead+1+j) {
+									panic(fmt.Sprintf("expected by[j]=%v  to equal  lastRead+1+j == %v, but did not", by[j], lastRead+1+j))
+								}
+							}
+							if n > 0 {
+								//fmt.Printf("reader read from %d .. %d\n", lastRead+1, lastRead+n)
+							}
+							lastRead += n
+						}
+						close(readerDone)
+					}()
+
+					<-writerDone
+					<-readerDone
+				} // end bufsz loop
+			} // end ringSize loop
+		})
+	})
+}
+
+// same set of tests for non-atomic rbuf:
 func TestAtomicRingBufReadWrite(t *testing.T) {
 	b := NewAtomicFixedSizeRingBuf(5)
 
