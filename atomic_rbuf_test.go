@@ -92,42 +92,42 @@ func TestAtomicRingBufReadWrite(t *testing.T) {
 			n, err := b.Write(data[0:5])
 			cv.So(n, cv.ShouldEqual, 5)
 			cv.So(err, cv.ShouldEqual, nil)
-			cv.So(b.Readable, cv.ShouldEqual, 5)
+			cv.So(b.readable, cv.ShouldEqual, 5)
 			if n != 5 {
 				fmt.Printf("should have been able to write 5 bytes.\n")
 			}
 			if err != nil {
 				panic(err)
 			}
-			cv.So(b.Bytes(), cv.ShouldResemble, data[0:5])
+			cv.So(b.Bytes(false), cv.ShouldResemble, data[0:5])
 
 			sink := make([]byte, 3)
 			n, err = b.Read(sink)
 			cv.So(n, cv.ShouldEqual, 3)
-			cv.So(b.Bytes(), cv.ShouldResemble, data[3:5])
+			cv.So(b.Bytes(false), cv.ShouldResemble, data[3:5])
 			cv.So(sink, cv.ShouldResemble, data[0:3])
 		})
 
 		cv.Convey("Write() more than 5 should give back ErrShortWrite", func() {
 			b.Reset()
-			cv.So(b.Readable, cv.ShouldEqual, 0)
+			cv.So(b.readable, cv.ShouldEqual, 0)
 			n, err := b.Write(data[0:10])
 			cv.So(n, cv.ShouldEqual, 5)
 			cv.So(err, cv.ShouldEqual, io.ErrShortWrite)
-			cv.So(b.Readable, cv.ShouldEqual, 5)
+			cv.So(b.readable, cv.ShouldEqual, 5)
 			if n != 5 {
 				fmt.Printf("should have been able to write 5 bytes.\n")
 			}
-			cv.So(b.Bytes(), cv.ShouldResemble, data[0:5])
+			cv.So(b.Bytes(false), cv.ShouldResemble, data[0:5])
 
 			sink := make([]byte, 3)
 			n, err = b.Read(sink)
 			cv.So(n, cv.ShouldEqual, 3)
-			cv.So(b.Bytes(), cv.ShouldResemble, data[3:5])
+			cv.So(b.Bytes(false), cv.ShouldResemble, data[3:5])
 			cv.So(sink, cv.ShouldResemble, data[0:3])
 		})
 
-		cv.Convey("we should be able to wrap data and then get it back in Bytes()", func() {
+		cv.Convey("we should be able to wrap data and then get it back in Bytes(false)", func() {
 			b.Reset()
 
 			n, err := b.Write(data[0:3])
@@ -138,13 +138,13 @@ func TestAtomicRingBufReadWrite(t *testing.T) {
 			n, err = b.Read(sink) // put b.beg at 3
 			cv.So(n, cv.ShouldEqual, 3)
 			cv.So(err, cv.ShouldEqual, nil)
-			cv.So(b.Readable, cv.ShouldEqual, 0)
+			cv.So(b.readable, cv.ShouldEqual, 0)
 
 			n, err = b.Write(data[3:8]) // wrap 3 bytes around to the front
 			cv.So(n, cv.ShouldEqual, 5)
 			cv.So(err, cv.ShouldEqual, nil)
 
-			by := b.Bytes()
+			by := b.Bytes(false)
 			cv.So(by, cv.ShouldResemble, data[3:8]) // but still get them back from the ping-pong buffering
 
 		})
@@ -160,7 +160,7 @@ func TestAtomicRingBufReadWrite(t *testing.T) {
 			n, err = b.Read(sink) // put b.beg at 3
 			cv.So(n, cv.ShouldEqual, 3)
 			cv.So(err, cv.ShouldEqual, nil)
-			cv.So(b.Readable, cv.ShouldEqual, 0)
+			cv.So(b.readable, cv.ShouldEqual, 0)
 
 			n, err = b.Write(data[3:8]) // wrap 3 bytes around to the front
 
@@ -191,16 +191,39 @@ func TestAtomicRingBufReadWrite(t *testing.T) {
 			k, err := b.Read(sink) // put b.beg at 4
 			cv.So(k, cv.ShouldEqual, 4)
 			cv.So(err, cv.ShouldEqual, nil)
-			cv.So(b.Readable, cv.ShouldEqual, 0)
+			cv.So(b.readable, cv.ShouldEqual, 0)
 			cv.So(b.Beg, cv.ShouldEqual, 4)
 
 			bbread := bytes.NewBuffer(data[4:9])
 			n, err = b.ReadFrom(bbread) // wrap 4 bytes around to the front, 5 bytes total.
 
-			by := b.Bytes()
+			by := b.Bytes(false)
 			cv.So(by, cv.ShouldResemble, data[4:9]) // but still get them back continguous from the ping-pong buffering
 		})
 
 	})
 
 }
+
+/*
+   atomicRingBuf := NewAtomicFixedSizeRingBuf(1024)
+   var avail int
+   var lastReadSz int
+   var curRead []byte
+
+   for {
+       // Bytes(false) will pin data into b.Use[0] or b.Use[1]; it will stay there even
+       // with more Write()-ing after the Bytes(false); at least
+       // until our Advance() call releases it.
+       curRead = atomicRingBuf.Bytes(false)
+       avail = len(curRead)
+
+       select {
+           case recvBytesChan <- curRead:
+                 atomicRingBuf.Advance(len(curRead))
+                 curRead = []byte{}
+
+       }
+   }
+
+*/

@@ -28,8 +28,15 @@ type AtomicFixedSizeRingBuf struct {
 	Use      int       // which A buffer is in active use, 0 or 1
 	N        int       // MaxViewInBytes, the size of A[0] and A[1] in bytes.
 	Beg      int       // start of data in A[Use]
-	Readable int       // number of bytes available to read in A[Use]
+	readable int       // number of bytes available to read in A[Use]
 	tex      sync.Mutex
+}
+
+// Readable() returns the number of bytes available for reading.
+func (b *AtomicFixedSizeRingBuf) Readable() int {
+	b.tex.Lock()
+	defer b.tex.Unlock()
+	return b.readable
 }
 
 // get the length of the largest read that we can provide to a contiguous slice
@@ -38,7 +45,7 @@ func (b *AtomicFixedSizeRingBuf) ContigLen() int {
 	b.tex.Lock()
 	defer b.tex.Unlock()
 
-	extent := b.Beg + b.Readable
+	extent := b.Beg + b.readable
 	firstContigLen := intMin2(extent, b.N) - b.Beg
 	return firstContigLen
 }
@@ -53,7 +60,7 @@ func NewAtomicFixedSizeRingBuf(maxViewInBytes int) *AtomicFixedSizeRingBuf {
 
 		N:        n,
 		Beg:      0,
-		Readable: 0,
+		readable: 0,
 	}
 	r.A[0] = make([]byte, n, n)
 	r.A[1] = make([]byte, n, n)
@@ -63,20 +70,58 @@ func NewAtomicFixedSizeRingBuf(maxViewInBytes int) *AtomicFixedSizeRingBuf {
 
 // Bytes() returns a slice of the contents of the unread portion of the buffer.
 // Unlike the standard library Bytes() method (on bytes.Buffer for example),
-// the result of the AtomicFixedSizeRingBuf::Bytes() is a completely new
+// the result of the AtomicFixedSizeRingBuf::Bytes(true) is a completely new
 // returned slice, so modifying that slice will have no impact on the contents
 // of the internal ring.
 //
+// Bytes(false) acts like the standard library bytes.Buffer::Bytes() call,
+// in that it returns a slice which is backed by the buffer itself (so
+// no copy is involved).
+//
 // The largest slice Bytes ever returns is bounded above by the maxViewInBytes
 // value used when calling NewAtomicFixedSizeRingBuf().
-func (b *AtomicFixedSizeRingBuf) Bytes() []byte {
+//
+// Possible side-effect: may modify b.Use, the buffer in use.
+//
+/*func (b *AtomicFixedSizeRingBuf) Bytes(makeCopy bool) []byte {
 	b.tex.Lock()
 	defer b.tex.Unlock()
 
-	extent := b.Beg + b.Readable
+	extent := b.Beg + b.readable
+	if b.Beg == 0 {
+		// we've already been pinned into this bother, so write additions
+		// won't change data location.
+		return b.A[b.Use][b.Beg:(b.Beg + b.readable)]
+	}
+
+	// wrap into the other buffer so that Bytes() has the effect of pinning
+	// the data in place.
+	src := b.Use
+	dest := 1 - b.Use
+
+	n := copy(b.A[dest], b.A[src][b.Beg:])
+	n += copy(b.A[dest][n:], b.A[src][0:(extent%b.N)])
+
+	b.Use = dest
+	b.Beg = 0
+
+	if makeCopy {
+		ret := make([]byte, n)
+		copy(ret, b.A[b.Use][:n])
+		return ret
+	}
+	return b.A[b.Use][:n]
+}
+*/
+
+func (b *AtomicFixedSizeRingBuf) Bytes(makeCopy bool) []byte {
+	b.tex.Lock()
+	defer b.tex.Unlock()
+
+	extent := b.Beg + b.readable
 	if extent <= b.N {
 		// we fit contiguously in this buffer without wrapping to the other
-		return b.A[b.Use][b.Beg:(b.Beg + b.Readable)]
+		return b.A[b.Use][b.Beg:(b.Beg + b.readable)]
 	}
 
 	// wrap into the other buffer
@@ -89,9 +134,12 @@ func (b *AtomicFixedSizeRingBuf) Bytes() []byte {
 	b.Use = dest
 	b.Beg = 0
 
-	ret := make([]byte, n)
-	copy(ret, b.A[b.Use][:n])
-	return ret
+	if makeCopy {
+		ret := make([]byte, n)
+		copy(ret, b.A[b.Use][:n])
+		return ret
+	}
+	return b.A[b.Use][:n]
 }
 
 // Read():
@@ -150,10 +198,10 @@ func (b *AtomicFixedSizeRingBuf) ReadAndMaybeAdvance(p []byte, doAdvance bool) (
 	if len(p) == 0 {
 		return 0, nil
 	}
-	if b.Readable == 0 {
+	if b.readable == 0 {
 		return 0, io.EOF
 	}
-	extent := b.Beg + b.Readable
+	extent := b.Beg + b.readable
 	if extent <= b.N {
 		n += copy(p, b.A[b.Use][b.Beg:extent])
 	} else {
@@ -174,6 +222,10 @@ func (b *AtomicFixedSizeRingBuf) ReadAndMaybeAdvance(p []byte, doAdvance bool) (
 // and any error encountered that caused the write to stop early.
 // Write must return a non-nil error if it returns n < len(p).
 //
+// Write doesn't modify b.User, so once a []byte is pinned with
+// a call to Bytes(), it should remain valid even with additional
+// calls to Write() that come after the Bytes() call.
+//
 func (b *AtomicFixedSizeRingBuf) Write(p []byte) (n int, err error) {
 	b.tex.Lock()
 	defer b.tex.Unlock()
@@ -185,7 +237,7 @@ func (b *AtomicFixedSizeRingBuf) Write(p []byte) (n int, err error) {
 			return
 		}
 
-		writeCapacity := b.N - b.Readable
+		writeCapacity := b.N - b.readable
 		if writeCapacity <= 0 {
 			// we are all full up already.
 			return n, io.ErrShortWrite
@@ -196,14 +248,14 @@ func (b *AtomicFixedSizeRingBuf) Write(p []byte) (n int, err error) {
 			// keep going, write what we can.
 		}
 
-		writeStart := (b.Beg + b.Readable) % b.N
+		writeStart := (b.Beg + b.readable) % b.N
 
 		upperLim := intMin2(writeStart+writeCapacity, b.N)
 
 		k := copy(b.A[b.Use][writeStart:upperLim], p)
 
 		n += k
-		b.Readable += k
+		b.readable += k
 		p = p[k:]
 
 		// we can fill from b.A[b.Use][0:something] from
@@ -221,13 +273,13 @@ func (b *AtomicFixedSizeRingBuf) WriteTo(w io.Writer) (n int64, err error) {
 	b.tex.Lock()
 	defer b.tex.Unlock()
 
-	if b.Readable == 0 {
+	if b.readable == 0 {
 		return 0, io.EOF
 	}
 
-	extent := b.Beg + b.Readable
+	extent := b.Beg + b.readable
 	firstWriteLen := intMin2(extent, b.N) - b.Beg
-	secondWriteLen := b.Readable - firstWriteLen
+	secondWriteLen := b.readable - firstWriteLen
 	if firstWriteLen > 0 {
 		m, e := w.Write(b.A[b.Use][b.Beg:(b.Beg + firstWriteLen)])
 		n += int64(m)
@@ -269,17 +321,17 @@ func (b *AtomicFixedSizeRingBuf) ReadFrom(r io.Reader) (n int64, err error) {
 	defer b.tex.Unlock()
 
 	for {
-		writeCapacity := b.N - b.Readable
+		writeCapacity := b.N - b.readable
 		if writeCapacity <= 0 {
 			// we are all full
 			return n, nil
 		}
-		writeStart := (b.Beg + b.Readable) % b.N
+		writeStart := (b.Beg + b.readable) % b.N
 		upperLim := intMin2(writeStart+writeCapacity, b.N)
 
 		m, e := r.Read(b.A[b.Use][writeStart:upperLim])
 		n += int64(m)
-		b.Readable += m
+		b.readable += m
 		if e == io.EOF {
 			return n, nil
 		}
@@ -297,7 +349,7 @@ func (b *AtomicFixedSizeRingBuf) Reset() {
 	defer b.tex.Unlock()
 
 	b.Beg = 0
-	b.Readable = 0
+	b.readable = 0
 	b.Use = 0
 }
 
@@ -321,10 +373,10 @@ func (b *AtomicFixedSizeRingBuf) unatomic_advance(n int) {
 	if n <= 0 {
 		return
 	}
-	if n > b.Readable {
-		n = b.Readable
+	if n > b.readable {
+		n = b.readable
 	}
-	b.Readable -= n
+	b.readable -= n
 	b.Beg = (b.Beg + n) % b.N
 }
 
@@ -337,6 +389,9 @@ func (b *AtomicFixedSizeRingBuf) unatomic_advance(n int) {
 // write to the me buffer.
 // If we already have a bigger buffer, copy me into the existing
 // buffer instead.
+//
+// Side-effect: may change b.Use, among other internal state changes.
+//
 func (b *AtomicFixedSizeRingBuf) Adopt(me []byte) {
 	b.tex.Lock()
 	defer b.tex.Unlock()
@@ -348,13 +403,13 @@ func (b *AtomicFixedSizeRingBuf) Adopt(me []byte) {
 		b.N = n
 		b.Use = 0
 		b.Beg = 0
-		b.Readable = n
+		b.readable = n
 	} else {
 		// we already have a larger buffer, reuse it.
 		copy(b.A[0], me)
 		b.Use = 0
 		b.Beg = 0
-		b.Readable = n
+		b.readable = n
 	}
 }
 
