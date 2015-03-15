@@ -117,7 +117,7 @@ func (b *AtomicFixedSizeRingBuf) Bytes(makeCopy bool) []byte {
 // BytesTwo returns all readable bytes, but in two separate slices,
 // to avoid copying. The two slices are from the same buffer, but
 // are not contiguous. Either or both may be empty slices.
-func (b *AtomicFixedSizeRingBuf) BytesTwo(makeCopy bool) (first []byte, second []byte) {
+func (b *AtomicFixedSizeRingBuf) BytesTwo() (first []byte, second []byte) {
 	b.tex.Lock()
 	defer b.tex.Unlock()
 
