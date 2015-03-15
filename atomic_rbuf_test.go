@@ -14,21 +14,22 @@ import (
 func TestAtomicRingBufSafeConcurrently001(t *testing.T) {
 
 	cv.Convey("Given an AtomicFixedSizeRingBuf", t, func() {
-		cv.Convey("concurrent access to the ring should never corrupt it or deadlock, so writing bytes numbered in order should result in reading those bytes in the same numeric order. NB: This test takes about 30 seconds to run on my laptop, with maxRingSize = 20 and N = 10.\n\n", func() {
+		cv.Convey("concurrent access to the ring should never corrupt it or deadlock, so writing bytes numbered in order should result in reading those bytes in the same numeric order.\n\n", func() {
 
+			// the ringSize +=3 and bufsz +=7 result in sampling instead of
+			// exhaustive checking, but that should be fine.
 			maxRingSize := 20
-			for ringSize := 1; ringSize < maxRingSize; ringSize++ {
+			for ringSize := 5; ringSize < maxRingSize; ringSize += 3 {
 				b := NewAtomicFixedSizeRingBuf(ringSize)
 
-				for bufsz := 1; bufsz < 2*ringSize+1; bufsz++ {
+				for bufsz := 3; bufsz < 2*ringSize+1; bufsz += 7 {
 					fmt.Printf("*** testing ringSize = %d  and Read/Write with bufsz = %d\n", ringSize, bufsz)
 
 					writerDone := make(chan bool)
 					readerDone := make(chan bool)
 
 					//N := 255 // biggest N that fits in a byte is 255
-					N := 10
-					bufsz := 1
+					N := 20
 					go func() {
 						// writer, write numbers from 0..N in order.
 						by := make([]byte, bufsz)
