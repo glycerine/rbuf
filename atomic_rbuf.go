@@ -114,10 +114,21 @@ func (b *AtomicFixedSizeRingBuf) Bytes(makeCopy bool) []byte {
 	return b.A[b.Use][:n]
 }
 
+// TwoBuffers: the return value of BytesTwo(). TwoBuffers
+// holds two slices to the contents of the readable
+// area of the internal buffer. The slices contents are logically
+// ordered First then Second, but the Second will actually
+// be physically before the First. Either or both of
+// First and Second may be empty slices.
+type TwoBuffers struct {
+	First  []byte // the first part of the contents
+	Second []byte // the second part of the contents
+}
+
 // BytesTwo returns all readable bytes, but in two separate slices,
 // to avoid copying. The two slices are from the same buffer, but
 // are not contiguous. Either or both may be empty slices.
-func (b *AtomicFixedSizeRingBuf) BytesTwo() (first []byte, second []byte) {
+func (b *AtomicFixedSizeRingBuf) BytesTwo() TwoBuffers {
 	b.tex.Lock()
 	defer b.tex.Unlock()
 
@@ -125,10 +136,10 @@ func (b *AtomicFixedSizeRingBuf) BytesTwo() (first []byte, second []byte) {
 	if extent <= b.N {
 		// we fit contiguously in this buffer without wrapping to the other.
 		// Let second stay an empty slice.
-		return b.A[b.Use][b.Beg:(b.Beg + b.readable)], []byte{}
+		return TwoBuffers{First: b.A[b.Use][b.Beg:(b.Beg + b.readable)], Second: []byte{}}
 	}
 
-	return b.A[b.Use][b.Beg:(b.Beg + b.readable)], b.A[b.Use][0:(extent % b.N)]
+	return TwoBuffers{First: b.A[b.Use][b.Beg:(b.Beg + b.readable)], Second: b.A[b.Use][0:(extent % b.N)]}
 }
 
 // Read():
