@@ -69,6 +69,9 @@ func NewAtomicFixedSizeRingBuf(maxViewInBytes int) *AtomicFixedSizeRingBuf {
 }
 
 // Bytes() returns a slice of the contents of the unread portion of the buffer.
+//
+// To avoid copying, see the companion BytesTwo() call.
+//
 // Unlike the standard library Bytes() method (on bytes.Buffer for example),
 // the result of the AtomicFixedSizeRingBuf::Bytes(true) is a completely new
 // returned slice, so modifying that slice will have no impact on the contents
@@ -83,37 +86,6 @@ func NewAtomicFixedSizeRingBuf(maxViewInBytes int) *AtomicFixedSizeRingBuf {
 //
 // Possible side-effect: may modify b.Use, the buffer in use.
 //
-/*func (b *AtomicFixedSizeRingBuf) Bytes(makeCopy bool) []byte {
-	b.tex.Lock()
-	defer b.tex.Unlock()
-
-	extent := b.Beg + b.readable
-	if b.Beg == 0 {
-		// we've already been pinned into this bother, so write additions
-		// won't change data location.
-		return b.A[b.Use][b.Beg:(b.Beg + b.readable)]
-	}
-
-	// wrap into the other buffer so that Bytes() has the effect of pinning
-	// the data in place.
-	src := b.Use
-	dest := 1 - b.Use
-
-	n := copy(b.A[dest], b.A[src][b.Beg:])
-	n += copy(b.A[dest][n:], b.A[src][0:(extent%b.N)])
-
-	b.Use = dest
-	b.Beg = 0
-
-	if makeCopy {
-		ret := make([]byte, n)
-		copy(ret, b.A[b.Use][:n])
-		return ret
-	}
-	return b.A[b.Use][:n]
-}
-*/
-
 func (b *AtomicFixedSizeRingBuf) Bytes(makeCopy bool) []byte {
 	b.tex.Lock()
 	defer b.tex.Unlock()
@@ -140,6 +112,23 @@ func (b *AtomicFixedSizeRingBuf) Bytes(makeCopy bool) []byte {
 		return ret
 	}
 	return b.A[b.Use][:n]
+}
+
+// BytesTwo returns all readable bytes, but in two separate slices,
+// to avoid copying. The two slices are from the same buffer, but
+// are not contiguous. Either or both may be empty slices.
+func (b *AtomicFixedSizeRingBuf) BytesTwo(makeCopy bool) (first []byte, second []byte) {
+	b.tex.Lock()
+	defer b.tex.Unlock()
+
+	extent := b.Beg + b.readable
+	if extent <= b.N {
+		// we fit contiguously in this buffer without wrapping to the other.
+		// Let second stay an empty slice.
+		return b.A[b.Use][b.Beg:(b.Beg + b.readable)], []byte{}
+	}
+
+	return b.A[b.Use][b.Beg:(b.Beg + b.readable)], b.A[b.Use][0:(extent % b.N)]
 }
 
 // Read():

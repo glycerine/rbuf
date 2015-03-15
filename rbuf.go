@@ -34,7 +34,8 @@ import "io"
 // it may copy the back and then the front of a wrapped buffer A[Use]
 // into A[1-Use] in order to get a contiguous slice. If possible use ContigLen()
 // first to get the size that can be read without copying, Read() that
-// amount, and then Read() a second time -- to avoid the copy.
+// amount, and then Read() a second time -- to avoid the copy. See
+// BytesTwo() for a method that does this for you.
 //
 type FixedSizeRingBuf struct {
 	A        [2][]byte // a pair of ping/pong buffers. Only one is active.
@@ -97,6 +98,21 @@ func (b *FixedSizeRingBuf) Bytes() []byte {
 	b.Beg = 0
 
 	return b.A[b.Use][:n]
+}
+
+// BytesTwo returns all readable bytes, but in two separate slices,
+// to avoid copying. The two slices are from the same buffer, but
+// are not contiguous. Either or both may be empty slices.
+func (b *FixedSizeRingBuf) BytesTwo(makeCopy bool) (first []byte, second []byte) {
+
+	extent := b.Beg + b.Readable
+	if extent <= b.N {
+		// we fit contiguously in this buffer without wrapping to the other.
+		// Let second stay an empty slice.
+		return b.A[b.Use][b.Beg:(b.Beg + b.Readable)], second
+	}
+
+	return b.A[b.Use][b.Beg:(b.Beg + b.Readable)], b.A[b.Use][0:(extent % b.N)]
 }
 
 // Read():
