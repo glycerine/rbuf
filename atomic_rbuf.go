@@ -14,6 +14,7 @@ package rbuf
 // copyright 2010 The Go Authors.
 
 import (
+	"fmt"
 	"io"
 	"sync"
 )
@@ -131,7 +132,10 @@ type TwoBuffers struct {
 func (b *AtomicFixedSizeRingBuf) BytesTwo() TwoBuffers {
 	b.tex.Lock()
 	defer b.tex.Unlock()
+	return b.unatomic_BytesTwo()
+}
 
+func (b *AtomicFixedSizeRingBuf) unatomic_BytesTwo() TwoBuffers {
 	extent := b.Beg + b.readable
 	if extent <= b.N {
 		// we fit contiguously in this buffer without wrapping to the other.
@@ -140,6 +144,58 @@ func (b *AtomicFixedSizeRingBuf) BytesTwo() TwoBuffers {
 	}
 
 	return TwoBuffers{First: b.A[b.Use][b.Beg:(b.Beg + b.readable)], Second: b.A[b.Use][0:(extent % b.N)]}
+}
+
+// Purpose of BytesTwo() and AdvanceBytesTwo(): avoid extra copying of data.
+//
+// AdvanceBytesTwo() takes a TwoBuffers as input, this must have been
+// from a previous call to BytesTwo(); no intervening calls to Bytes()
+// or Adopt() are allowed (or any other future routine or client data
+// access that changes the internal data location or contents) can have
+// been made.
+//
+// After sanity checks, AdvanceBytesTwo() advances the internal buffer, effectively
+// calling Advance( len(tb.First) + len(tb.Second)).
+//
+// If intervening-calls that changed the buffers (other than appending
+// data to the buffer) are detected, we will panic as a safety/sanity/
+// aid-to-debugging measure.
+//
+func (b *AtomicFixedSizeRingBuf) AdvanceBytesTwo(tb TwoBuffers) {
+	b.tex.Lock()
+	defer b.tex.Unlock()
+
+	tblen := len(tb.First) + len(tb.Second)
+
+	if tblen == 0 {
+		return // nothing to do
+	}
+
+	// sanity check: insure we have re-located in the meantime
+	if tblen > b.readable {
+		panic(fmt.Sprintf("tblen was %d, and this was greater than b.readerable = %d. Usage error detected and data loss may have occurred (available data appears to have shrunken out from under us!).", tblen, b.readable))
+	}
+
+	tbnow := b.unatomic_BytesTwo()
+
+	if len(tb.First) > 0 {
+		if tb.First[0] != tbnow.First[0] {
+			panic(fmt.Sprintf("slice contents of First have changed out from under us!: '%s' vs '%s'", string(tb.First), string(tbnow.First)))
+		}
+	}
+	if len(tb.Second) > 0 {
+		if len(tb.First) > len(tbnow.First) {
+			panic(fmt.Sprintf("slice contents of Second have changed out from under us! tbnow.First length(%d) is less than tb.First(%d.", len(tbnow.First), len(tb.First)))
+		}
+		if len(tbnow.Second) == 0 {
+			panic(fmt.Sprintf("slice contents of Second have changed out from under us! tbnow.Second is empty, but tb.Second was not"))
+		}
+		if tb.Second[0] != tbnow.Second[0] {
+			panic(fmt.Sprintf("slice contents of Second have changed out from under us!: '%s' vs '%s'", string(tb.Second), string(tbnow.Second)))
+		}
+	}
+
+	b.unatomic_advance(tblen)
 }
 
 // Read():
