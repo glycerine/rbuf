@@ -61,11 +61,11 @@ func NewAtomicFixedSizeRingBuf(maxViewInBytes int) *AtomicFixedSizeRingBuf {
 	return r
 }
 
-// from the standard library description of Bytes():
 // Bytes() returns a slice of the contents of the unread portion of the buffer.
-// If the caller changes the contents of the
-// returned slice, the contents of the buffer will change provided there
-//  are no intervening method calls on the Buffer.
+// Unlike the standard library Bytes() method (on bytes.Buffer for example),
+// the result of the AtomicFixedSizeRingBuf::Bytes() is a completely new
+// returned slice, so modifying that slice will have no impact on the contents
+// of the internal ring.
 //
 // The largest slice Bytes ever returns is bounded above by the maxViewInBytes
 // value used when calling NewAtomicFixedSizeRingBuf().
@@ -89,7 +89,9 @@ func (b *AtomicFixedSizeRingBuf) Bytes() []byte {
 	b.Use = dest
 	b.Beg = 0
 
-	return b.A[b.Use][:n]
+	ret := make([]byte, n)
+	copy(ret, b.A[b.Use][:n])
+	return ret
 }
 
 // Read():
