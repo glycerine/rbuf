@@ -11,76 +11,6 @@ import (
 
 // new tests just for atomic version
 
-func TestAtomicRingBufSafeConcurrently001(t *testing.T) {
-
-	cv.Convey("Given an AtomicFixedSizeRingBuf", t, func() {
-		cv.Convey("concurrent access to the ring should never corrupt it or deadlock, so writing bytes numbered in order should result in reading those bytes in the same numeric order.\n\n", func() {
-
-			// the ringSize +=3 and bufsz +=7 result in sampling instead of
-			// exhaustive checking, but that should be fine.
-			maxRingSize := 20
-			for ringSize := 5; ringSize < maxRingSize; ringSize += 3 {
-				b := NewAtomicFixedSizeRingBuf(ringSize)
-
-				for bufsz := 3; bufsz < 2*ringSize+1; bufsz += 7 {
-					fmt.Printf("*** testing ringSize = %d  and Read/Write with bufsz = %d\n", ringSize, bufsz)
-
-					writerDone := make(chan bool)
-					readerDone := make(chan bool)
-
-					//N := 255 // biggest N that fits in a byte is 255
-					N := 20
-					go func() {
-						// writer, write numbers from 0..N in order.
-						by := make([]byte, bufsz)
-						lastWritten := -1
-						for lastWritten < N {
-							for j := 0; j < bufsz; j++ {
-								by[j] = byte(lastWritten + 1 + j)
-							}
-							n, err := b.Write(by)
-							if err != nil && err.Error() != "short write" {
-								panic(fmt.Errorf("wrote n=%d, error: '%s'", n, err))
-							}
-							if n > 0 {
-								//fmt.Printf("writer wrote from %d .. %d\n", lastWritten+1, lastWritten+n)
-							}
-							lastWritten += n
-						}
-						close(writerDone)
-					}()
-
-					go func() {
-						// reader, expect to read 0..N in order
-						by := make([]byte, bufsz)
-						lastRead := -1
-						for lastRead < N {
-							n, err := b.Read(by)
-							if err != nil && err.Error() != "EOF" {
-								panic(err)
-							}
-							for j := 0; j < n; j++ {
-								//cv.So(by[j], cv.ShouldEqual, lastRead+1+j)
-								if by[j] != byte(lastRead+1+j) {
-									panic(fmt.Sprintf("expected by[j]=%v  to equal  lastRead+1+j == %v, but did not", by[j], lastRead+1+j))
-								}
-							}
-							if n > 0 {
-								//fmt.Printf("reader read from %d .. %d\n", lastRead+1, lastRead+n)
-							}
-							lastRead += n
-						}
-						close(readerDone)
-					}()
-
-					<-writerDone
-					<-readerDone
-				} // end bufsz loop
-			} // end ringSize loop
-		})
-	})
-}
-
 // same set of tests for non-atomic rbuf:
 func TestAtomicRingBufReadWrite(t *testing.T) {
 	b := NewAtomicFixedSizeRingBuf(5)
@@ -204,26 +134,3 @@ func TestAtomicRingBufReadWrite(t *testing.T) {
 	})
 
 }
-
-/*
-   atomicRingBuf := NewAtomicFixedSizeRingBuf(1024)
-   var avail int
-   var lastReadSz int
-   var curRead []byte
-
-   for {
-       // Bytes(false) will pin data into b.Use[0] or b.Use[1]; it will stay there even
-       // with more Write()-ing after the Bytes(false); at least
-       // until our Advance() call releases it.
-       curRead = atomicRingBuf.Bytes(false)
-       avail = len(curRead)
-
-       select {
-           case recvBytesChan <- curRead:
-                 atomicRingBuf.Advance(len(curRead))
-                 curRead = []byte{}
-
-       }
-   }
-
-*/
