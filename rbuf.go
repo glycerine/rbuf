@@ -112,7 +112,7 @@ func (b *FixedSizeRingBuf) BytesTwo(makeCopy bool) (first []byte, second []byte)
 		return b.A[b.Use][b.Beg:(b.Beg + b.Readable)], second
 	}
 
-	return b.A[b.Use][b.Beg:(b.Beg + b.Readable)], b.A[b.Use][0:(extent % b.N)]
+	return b.A[b.Use][b.Beg:b.N], b.A[b.Use][0:(extent % b.N)]
 }
 
 // Read():
