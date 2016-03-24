@@ -481,3 +481,21 @@ func (f *FixedSizeRingBuf) Last() int {
 
 	return last % f.N
 }
+
+// Kth presents the contents of the
+// ring as a strictly linear sequence,
+// so the user doesn't need to think
+// about modular arithmetic. Here k indexes from
+// [0, f.Readable-1], assuming f.Avail()
+// is greater than 0. Kth() returns an
+// actual index where the logical k-th
+// element, starting from f.Beg, resides.
+// f.Beg itself lives at k = 0. If k is
+// out of bounds, or the ring is empty,
+// -1 is returned.
+func (f *FixedSizeRingBuf) Kth(k int) int {
+	if f.Readable == 0 || k < 0 || k >= f.Readable {
+		return -1
+	}
+	return (f.Beg + k) % f.N
+}
