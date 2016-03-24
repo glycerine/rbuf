@@ -382,7 +382,7 @@ func (f *FixedSizeRingBuf) First() int {
 // Next returns the index of the element after
 // from, or -1 if no more. returns -2 if erroneous
 // input (bad from).
-func (f *FixedSizeRingBuf) Next(from int) int {
+func (f *FixedSizeRingBuf) Nextpos(from int) int {
 	if from >= f.N || from < 0 {
 		return -2
 	}
@@ -438,11 +438,11 @@ func (b *FixedSizeRingBuf) LegalPos() (a0, aLast, b0, bLast int) {
 	return
 }
 
-// Prev returns the index of the element before
+// Prevpos returns the index of the element before
 // from, or -1 if no more and from is the
 // first in the ring. Returns -2 on bad
 // from position.
-func (f *FixedSizeRingBuf) Prev(from int) int {
+func (f *FixedSizeRingBuf) Prevpos(from int) int {
 	if from >= f.N || from < 0 {
 		return -2
 	}
