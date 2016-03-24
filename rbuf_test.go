@@ -131,3 +131,46 @@ func TestRingBufReadWrite(t *testing.T) {
 	})
 
 }
+
+func TestNextPrev(t *testing.T) {
+	b := NewFixedSizeRingBuf(6)
+	data := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+	cv.Convey("Given a FixedSizeRingBuf of size 6, filled with 4 elements at various begin points, then Next() and Prev() should return the correct positions or <0 if done", t, func() {
+		k := b.N
+		for i := 0; i < b.N; i++ {
+			b.Reset()
+			b.Beg = i
+			_, err := b.Write(data[0:k])
+			panicOn(err)
+			// cannot go prev to first
+			cv.So(b.Prev(i), cv.ShouldEqual, -1)
+			// cannot go after last
+			cv.So(b.Next((i+k-1)%b.N), cv.ShouldEqual, -1)
+			// in the middle we should be okay
+			for j := 1; j < k-1; j++ {
+				r := (i + j) % b.N
+				prev := b.Prev(r)
+				next := b.Next(r)
+				cv.So(prev >= 0, cv.ShouldBeTrue)
+				cv.So(next >= 0, cv.ShouldBeTrue)
+				if next > r {
+					cv.So(next, cv.ShouldEqual, r+1)
+				} else {
+					cv.So(next, cv.ShouldEqual, 0)
+				}
+				if prev < r {
+					cv.So(prev, cv.ShouldEqual, r-1)
+				} else {
+					cv.So(prev, cv.ShouldEqual, b.N-1)
+				}
+			}
+		}
+	})
+}
+
+func panicOn(err error) {
+	if err != nil {
+		panic(err)
+	}
+}

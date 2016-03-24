@@ -365,3 +365,119 @@ func intMin(a, b int) int {
 		return b
 	}
 }
+
+func (f *FixedSizeRingBuf) Avail() int {
+	return f.Readable
+}
+
+// returns the earliest index, or -1 if
+// the ring is empty
+func (f *FixedSizeRingBuf) First() int {
+	if f.Readable == 0 {
+		return -1
+	}
+	return f.Beg
+}
+
+// Next returns the index of the element after
+// from, or -1 if no more. returns -2 if erroneous
+// input (bad from).
+func (f *FixedSizeRingBuf) Next(from int) int {
+	if from >= f.N || from < 0 {
+		return -2
+	}
+	if f.Readable == 0 {
+		return -1
+	}
+
+	last := f.Last()
+	if from == last {
+		return -1
+	}
+	a0, a1, b0, b1 := f.LegalPos()
+	switch {
+	case from >= a0 && from < a1:
+		return from + 1
+	case from == a1:
+		return b0 // can be -1
+	case from >= b0 && from < b1:
+		return from + 1
+	case from == b1:
+		return -1
+	}
+	return -1
+}
+
+// LegalPos returns the legal index positions,
+// [a0,aLast] and [b0,bLast] inclusive, where the
+// [a0,aLast] holds the first FIFO ordered segment,
+// and the [b0,bLast] holds the second ordered segment,
+// if any.
+// A position of -1 means the segment is not used,
+// perhaps because b.Readable is zero, or because
+// the second segment [b0,bLast] is not in use (when
+// everything fits in the first [a0,aLast] segment).
+//
+func (b *FixedSizeRingBuf) LegalPos() (a0, aLast, b0, bLast int) {
+	a0 = -1
+	aLast = -1
+	b0 = -1
+	bLast = -1
+	if b.Readable == 0 {
+		return
+	}
+	a0 = b.Beg
+	last := b.Beg + b.Readable - 1
+	if last < b.N {
+		aLast = last
+		return
+	}
+	aLast = b.N - 1
+	b0 = 0
+	bLast = last % b.N
+	return
+}
+
+// Prev returns the index of the element before
+// from, or -1 if no more and from is the
+// first in the ring. Returns -2 on bad
+// from position.
+func (f *FixedSizeRingBuf) Prev(from int) int {
+	if from >= f.N || from < 0 {
+		return -2
+	}
+	if f.Readable == 0 {
+		return -1
+	}
+	if from == f.Beg {
+		return -1
+	}
+	a0, a1, b0, b1 := f.LegalPos()
+	switch {
+	case from == a0:
+		return -1
+	case from > a0 && from <= a1:
+		return from - 1
+	case from == b0:
+		return a1
+	case from > b0 && from <= b1:
+		return from - 1
+	}
+	return -1
+}
+
+// returns the index of the last element,
+// or -1 if the ring is empty.
+func (f *FixedSizeRingBuf) Last() int {
+	if f.Readable == 0 {
+		return -1
+	}
+
+	last := f.Beg + f.Readable - 1
+	if last < f.N {
+		// we fit without wrapping
+		return last
+	}
+
+	return last % f.N
+}
