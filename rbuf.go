@@ -226,6 +226,19 @@ func (b *FixedSizeRingBuf) Write(p []byte) (n int, err error) {
 	}
 }
 
+// When there are no space to write, advance some space for write
+func (b *FixedSizeRingBuf) WriteAndMaybeOverwriteOldestData(p []byte) (n int, err error) {
+	writeCapacity := b.N - b.Readable
+	if len(p) > writeCapacity {
+		b.Advance(len(p) - writeCapacity)
+	}
+	startPos := 0
+	if len(p) > b.N {
+		startPos = len(p) - b.N
+	}
+	return b.Write(p[startPos:])
+}
+
 // WriteTo and ReadFrom avoid intermediate allocation and copies.
 
 // WriteTo avoids intermediate allocation and copies.
