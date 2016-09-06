@@ -230,7 +230,7 @@ func (b *FixedSizeRingBuf) Write(p []byte) (n int, err error) {
 // WriteAndMaybeOverwriteOldestData always consumes the full
 // buffer p, even if that means blowing away the oldest
 // unread bytes in the ring to make room. In reality, only the last
-// min(len(p),b.N) bytes will end up being written to the ring.
+// min(len(p),b.N) bytes of p will end up being written to the ring.
 //
 // This allows the ring to act as a record of the most recent
 // b.N bytes of data -- a kind of temporal LRU cache, so the
