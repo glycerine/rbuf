@@ -17,9 +17,9 @@ type PointerRingBuf struct {
 }
 
 // constructor. NewPointerRingBuf will allocate internally
-// a slice of size maxViewInBytes.
-func NewPointerRingBuf(maxViewInBytes int) *PointerRingBuf {
-	n := maxViewInBytes
+// a slice of size sliceN
+func NewPointerRingBuf(sliceN int) *PointerRingBuf {
+	n := sliceN
 	r := &PointerRingBuf{
 		N:        n,
 		Beg:      0,
