@@ -84,13 +84,39 @@ func (b *Float64RingBuf) readAndMaybeAdvance(p []float64, doAdvance bool) (n int
 }
 
 //
-// Push writes len(p) float64 values from p to
+// WriteAndMaybeOverwriteOldestData always consumes the full
+// buffer p, even if that means blowing away the oldest
+// unread bytes in the ring to make room. In reality, only the last
+// min(len(p),b.N) bytes of p will end up being written to the ring.
+//
+// This allows the ring to act as a record of the most recent
+// b.N bytes of data -- a kind of temporal LRU cache, so the
+// speak. The linux kernel's dmesg ring buffer is similar.
+//
+func (b *Float64RingBuf) WriteAndMaybeOverwriteOldestData(p []float64) (n int, err error) {
+	writeCapacity := b.N - b.Readable
+	if len(p) > writeCapacity {
+		b.Advance(len(p) - writeCapacity)
+	}
+	startPos := 0
+	if len(p) > b.N {
+		startPos = len(p) - b.N
+	}
+	n, err = b.Write(p[startPos:])
+	if err != nil {
+		return n, err
+	}
+	return len(p), nil
+}
+
+//
+// Write writes len(p) float64 values from p to
 // the underlying data stream.
 // It returns the number of bytes written from p (0 <= n <= len(p))
 // and any error encountered that caused the write to stop early.
 // Write must return a non-nil error if it returns n < len(p).
 //
-func (b *Float64RingBuf) Push(p []float64) (n int, err error) {
+func (b *Float64RingBuf) Write(p []float64) (n int, err error) {
 	for {
 		if len(p) == 0 {
 			// nothing (left) to copy in; notice we shorten our
