@@ -45,6 +45,23 @@ func (b *Float64RingBuf) TwoContig(makeCopy bool) (first []float64, second []flo
 	return b.A[b.Beg:b.N], b.A[0:(extent % b.N)]
 }
 
+// Earliest returns the earliest written value v. ok will be
+// true unless the ring is empty, in which case ok will be false,
+// and v will be zero.
+func (b *Float64RingBuf) Earliest() (v float64, ok bool) {
+	if b.N == 0 {
+		return
+	}
+
+	extent := b.Beg + b.Readable
+	if extent <= b.N {
+		return b.A[(b.Beg+b.Readable)-1], true
+	}
+
+	// INVAR: extent > b.N, so extent%b.N > 0
+	return b.A[(extent%b.N)-1], true
+}
+
 // ReadFloat64():
 //
 // from bytes.Buffer.Read(): Read reads the next len(p) float64
