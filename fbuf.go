@@ -3,7 +3,9 @@ package rbuf
 // copyright (c) 2016, Jason E. Aten
 // license: MIT
 
-import "io"
+import (
+	"io"
+)
 
 // Float64RingBuf:
 //
@@ -49,17 +51,11 @@ func (b *Float64RingBuf) TwoContig(makeCopy bool) (first []float64, second []flo
 // true unless the ring is empty, in which case ok will be false,
 // and v will be zero.
 func (b *Float64RingBuf) Earliest() (v float64, ok bool) {
-	if b.N == 0 {
+	if b.Readable == 0 {
 		return
 	}
 
-	extent := b.Beg + b.Readable
-	if extent <= b.N {
-		return b.A[(b.Beg+b.Readable)-1], true
-	}
-
-	// INVAR: extent > b.N, so extent%b.N > 0
-	return b.A[(extent%b.N)-1], true
+	return b.A[b.Beg], true
 }
 
 // ReadFloat64():
