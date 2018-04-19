@@ -525,3 +525,15 @@ func (f *FixedSizeRingBuf) Kth(k int) int {
 	}
 	return (f.Beg + k) % f.N
 }
+
+// DeleteMostRecentBytes trims back the last n bytes written.
+func (f *FixedSizeRingBuf) DeleteMostRecentBytes(n int) {
+	if n <= 0 {
+		return
+	}
+	if n >= f.Readable {
+		f.Readable = 0
+		return
+	}
+	f.Readable -= n
+}
