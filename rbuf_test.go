@@ -127,6 +127,7 @@ func TestRingBufReadWrite(t *testing.T) {
 			by := b.Bytes()
 			cv.So(by, cv.ShouldResemble, data[4:9]) // but still get them back continguous from the ping-pong buffering
 		})
+
 		cv.Convey("FixedSizeRingBuf::WriteAndMaybeOverwriteOldestData() should auto advance", func() {
 			b.Reset()
 			n, err := b.WriteAndMaybeOverwriteOldestData(data[:5])

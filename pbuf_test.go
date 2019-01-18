@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	cv "github.com/smartystreets/goconvey/convey"
+	cv "github.com/glycerine/goconvey/convey"
 )
 
 func TestPointerReadWrite(t *testing.T) {

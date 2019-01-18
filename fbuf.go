@@ -15,13 +15,13 @@ type Float64RingBuf struct {
 	A        []float64
 	N        int // MaxView, the total size of A, whether or not in use.
 	Beg      int // start of in-use data in A
-	Readable int // number of pointers available in A (in use)
+	Readable int // number of float64 available in A (in use)
 }
 
 // constructor. NewFloat64RingBuf will allocate internally
-// a slice of size maxViewInBytes.
-func NewFloat64RingBuf(maxViewInBytes int) *Float64RingBuf {
-	n := maxViewInBytes
+// a slice of maxViewItems float64.
+func NewFloat64RingBuf(maxViewItems int) *Float64RingBuf {
+	n := maxViewItems
 	r := &Float64RingBuf{
 		N:        n,
 		Beg:      0,
@@ -32,7 +32,7 @@ func NewFloat64RingBuf(maxViewInBytes int) *Float64RingBuf {
 	return r
 }
 
-// TwoContig returns all readable pointers, but in two separate slices,
+// TwoContig returns all readable float64, but in two separate slices,
 // to avoid copying. The two slices are from the same buffer, but
 // are not contiguous. Either or both may be empty slices.
 func (b *Float64RingBuf) TwoContig(makeCopy bool) (first []float64, second []float64) {
@@ -56,6 +56,27 @@ func (b *Float64RingBuf) Earliest() (v float64, ok bool) {
 	}
 
 	return b.A[b.Beg], true
+}
+
+// Values returns all readable float64 in a single buffer. Calling this function
+// might allocate a new buffer to store the elements contiguously.
+func (b *Float64RingBuf) Values() []float64 {
+	first, second := b.TwoContig(false)
+
+	if len(first) == 0 {
+		return second
+	}
+
+	if len(second) == 0 {
+		return first
+	}
+
+	out := make([]float64, len(first) + len(second))
+
+	copy(out, first)
+	copy(out[len(first):], second)
+
+	return out
 }
 
 // ReadFloat64():
