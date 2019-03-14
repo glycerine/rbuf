@@ -45,7 +45,7 @@ type FixedSizeRingBuf struct {
 	Readable int       // number of bytes available to read in A[Use]
 }
 
-// get the length of the largest read that we can provide to a contiguous slice
+// ContigLen gets the length of the largest read that we can provide to a contiguous slice
 // without an extra linearizing copy of all bytes internally.
 func (b *FixedSizeRingBuf) ContigLen() int {
 	extent := b.Beg + b.Readable
@@ -396,7 +396,7 @@ func (f *FixedSizeRingBuf) Avail() int {
 	return f.Readable
 }
 
-// returns the earliest index, or -1 if
+// First returns the earliest index, or -1 if
 // the ring is empty
 func (f *FixedSizeRingBuf) First() int {
 	if f.Readable == 0 {
@@ -492,7 +492,7 @@ func (f *FixedSizeRingBuf) Prevpos(from int) int {
 	return -1
 }
 
-// returns the index of the last element,
+// Last returns the index of the last element,
 // or -1 if the ring is empty.
 func (f *FixedSizeRingBuf) Last() int {
 	if f.Readable == 0 {

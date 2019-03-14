@@ -40,7 +40,7 @@ func (b *AtomicFixedSizeRingBuf) Readable() int {
 	return b.readable
 }
 
-// get the length of the largest read that we can provide to a contiguous slice
+// ContigLen gets the length of the largest read that we can provide to a contiguous slice
 // without an extra linearizing copy of all bytes internally.
 func (b *AtomicFixedSizeRingBuf) ContigLen() int {
 	b.tex.Lock()
